@@ -39,11 +39,11 @@ export default function SheeterProfilePage({ params }: { params: { id: string } 
     notFound();
   }
 
-  const riskLevelColor = {
-    Low: 'bg-success',
-    Medium: 'bg-warning',
-    High: 'bg-destructive',
-  };
+  const riskLevelVariant = {
+    Low: 'success',
+    Medium: 'warning',
+    High: 'destructive',
+  } as const;
 
   return (
     <AppLayout>
@@ -67,14 +67,9 @@ export default function SheeterProfilePage({ params }: { params: { id: string } 
               <ShieldAlert className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <div
-                  className={`h-4 w-4 rounded-full ${
-                    riskLevelColor[sheeter.riskLevel]
-                  }`}
-                />
-                <span className="text-2xl font-bold">{sheeter.riskLevel}</span>
-              </div>
+               <Badge variant={riskLevelVariant[sheeter.riskLevel]} className="text-base">
+                {sheeter.riskLevel}
+              </Badge>
             </CardContent>
           </Card>
           <Card>

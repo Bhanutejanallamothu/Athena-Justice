@@ -12,9 +12,15 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const AutomatedInteractionReportInputSchema = z.object({
-  criminalHistory: z.string().describe('The criminal history of the rowdy sheeter.'),
-  behavioralPatterns: z.string().describe('The behavioral patterns of the rowdy sheeter.'),
-  previousCounselingResponses: z.string().describe('The previous counseling responses of the rowdy sheeter.'),
+  criminalHistory: z.array(
+    z.object({
+      cases: z.string(),
+      sections: z.string(),
+      frequency: z.string(),
+    })
+  ).describe('Criminal history of the rowdy sheeter.'),
+  behavioralPatterns: z.array(z.string()).describe('The behavioral patterns of the rowdy sheeter.'),
+  previousCounselingResponses: z.array(z.string()).describe('The previous counseling responses of the rowdy sheeter.'),
   sessionTranscript: z.string().describe('The transcript of the current counseling session.'),
 });
 export type AutomatedInteractionReportInput = z.infer<typeof AutomatedInteractionReportInputSchema>;
@@ -43,9 +49,18 @@ const prompt = ai.definePrompt({
 
   Your analysis should cover emotional indicators, cooperation level, behavioral change trend, risk level reassessment, a session summary, and a recommended next action. The report must be detailed and provide actionable insights for the counselor.
 
-  Criminal History: {{{criminalHistory}}}
+  Criminal History:
+  {{#each criminalHistory}}
+  - Case: {{{this.cases}}}, Sections: {{{this.sections}}}, Frequency: {{{this.frequency}}}
+  {{/each}}
+  
   Behavioral Patterns: {{{behavioralPatterns}}}
-  Previous Counseling Responses: {{{previousCounselingResponses}}}
+  
+  Previous Counseling Responses:
+  {{#each previousCounselingResponses}}
+  - {{{this}}}
+  {{/each}}
+
   Session Transcript: {{{sessionTranscript}}}
 
   Format your output as a JSON object that adheres to the defined schema.

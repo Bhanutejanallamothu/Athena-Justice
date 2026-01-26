@@ -44,7 +44,7 @@ type Message = {
 export default function CounselPage({ params: propParams }: { params: { id: string } }) {
   const router = useRouter();
   const params = useParams();
-  const id = (params.id || propParams.id) as string;
+  const id = params.id as string;
   const { toast } = useToast();
   const sheeter = React.useMemo(() => getSheeterById(id), [id]);
 
@@ -98,7 +98,7 @@ export default function CounselPage({ params: propParams }: { params: { id: stri
     }
 
     getPrepData();
-  }, [sheeter, toast]);
+  }, [sheeter]);
 
   const getAIResponse = React.useCallback(async () => {
     if (!sheeter) return;
@@ -233,9 +233,9 @@ export default function CounselPage({ params: propParams }: { params: { id: stri
     try {
         const sessionTranscript = messages.map(m => `${m.role}: ${m.content}`).join('\n');
         const report = await automatedInteractionReport({
-            criminalHistory: sheeter.criminalHistory.map(h => h.cases).join(', '),
-            behavioralPatterns: sheeter.behavioralTags.join(', '),
-            previousCounselingResponses: sheeter.previousCounselingSummaries.join('\n'),
+            criminalHistory: sheeter.criminalHistory,
+            behavioralPatterns: sheeter.behavioralTags,
+            previousCounselingResponses: sheeter.previousCounselingSummaries,
             sessionTranscript: sessionTranscript,
         });
         setReportData(report);
