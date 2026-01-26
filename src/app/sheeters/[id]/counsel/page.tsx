@@ -2,13 +2,14 @@
 
 import * as React from 'react';
 import { notFound, useRouter } from 'next/navigation';
-import { Bot, ChevronLeft, Loader2, Mic, Send, FileText, Sparkles } from 'lucide-react';
+import { Bot, ChevronLeft, Loader2, Mic, Send, FileText, Sparkles, Volume2 } from 'lucide-react';
 import Link from 'next/link';
 
 import { aiCounselingPrep, AICounselingPrepOutput } from '@/ai/flows/ai-counseling-prep';
 import { generateQuestion } from '@/ai/flows/voice-to-voice-question-flow';
 import { automatedInteractionReport, AutomatedInteractionReportOutput } from '@/ai/flows/automated-interaction-report';
 import { speechToText } from '@/ai/flows/speech-to-text-flow';
+import { textToSpeech } from '@/ai/flows/text-to-speech-flow';
 
 import { getSheeterById } from '@/lib/data';
 import type { Sheeter } from '@/lib/types';
@@ -38,6 +39,7 @@ import { Avatar } from '@/components/ui/avatar';
 type Message = {
   role: 'ai' | 'sheeter';
   content: string;
+  audioDataUri?: string;
 };
 
 export default function CounselPage({ params }: { params: { id: string } }) {
@@ -59,6 +61,15 @@ export default function CounselPage({ params }: { params: { id: string } }) {
   const [isRecording, setIsRecording] = React.useState(false);
   const [isLoadingTranscription, setIsLoadingTranscription] = React.useState(false);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+
+  const [currentAudio, setCurrentAudio] = React.useState<string | null>(null);
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+
+  React.useEffect(() => {
+    if (currentAudio && audioRef.current) {
+      audioRef.current.play().catch(e => console.error("Audio play failed", e));
+    }
+  }, [currentAudio]);
 
   React.useEffect(() => {
     if (!sheeter) return;
@@ -91,7 +102,16 @@ export default function CounselPage({ params }: { params: { id: string } }) {
   const handleStartSession = async () => {
     setSessionStarted(true);
     if (prepData?.suggestedQuestions?.[0]) {
-      setMessages([{ role: 'ai', content: prepData.suggestedQuestions[0] }]);
+      const firstQuestion = prepData.suggestedQuestions[0];
+      let audioDataUri: string | undefined;
+      try {
+        const { audioDataUri: audio } = await textToSpeech({ text: firstQuestion });
+        audioDataUri = audio;
+        setCurrentAudio(audioDataUri);
+      } catch (error) {
+        console.error('TTS Error on start:', error);
+      }
+      setMessages([{ role: 'ai', content: firstQuestion, audioDataUri }]);
     } else {
         await getNextQuestion();
     }
@@ -100,6 +120,7 @@ export default function CounselPage({ params }: { params: { id: string } }) {
   const getNextQuestion = async () => {
     if (!sheeter) return;
     setIsLoadingQuestion(true);
+    setCurrentAudio(null);
     try {
         const previousResponses = messages.filter(m => m.role === 'sheeter').map(m => m.content).join('\n');
         const result = await generateQuestion({
@@ -108,7 +129,21 @@ export default function CounselPage({ params }: { params: { id: string } }) {
             behavioralPatterns: sheeter.behavioralTags.join(', '),
             previousResponses: previousResponses,
         });
-        setMessages(prev => [...prev, { role: 'ai', content: result.question }]);
+        
+        let audioDataUri: string | undefined;
+        try {
+            const { audioDataUri: audio } = await textToSpeech({ text: result.question });
+            audioDataUri = audio;
+            setCurrentAudio(audioDataUri);
+        } catch (audioError) {
+            console.error('TTS Error:', audioError);
+            toast({
+                variant: "destructive",
+                title: "Audio Generation Failed",
+                description: "Could not generate voice for the question."
+            });
+        }
+        setMessages(prev => [...prev, { role: 'ai', content: result.question, audioDataUri }]);
     } catch (error) {
         console.error('Failed to generate question', error);
         toast({
@@ -182,7 +217,7 @@ export default function CounselPage({ params }: { params: { id: string } }) {
         const report = await automatedInteractionReport({
             criminalHistory: sheeter.criminalHistory.map(h => h.cases).join(', '),
             behavioralPatterns: sheeter.behavioralTags.join(', '),
-            previousCounselingResponses: sheeter.previousCounselingSummaries.join('\n'),
+            previousCounselingSummaries: sheeter.previousCounselingSummaries.join('\n'),
             sessionTranscript: sessionTranscript,
         });
         setReportData(report);
@@ -293,7 +328,16 @@ export default function CounselPage({ params }: { params: { id: string } }) {
                                     <div key={index} className={`flex items-start gap-3 ${message.role === 'ai' ? '' : 'justify-end'}`}>
                                         {message.role === 'ai' && <Avatar className="h-8 w-8 bg-primary text-primary-foreground flex items-center justify-center"><Bot className="h-5 w-5"/></Avatar>}
                                         <div className={`rounded-lg p-3 max-w-lg ${message.role === 'ai' ? 'bg-muted' : 'bg-primary text-primary-foreground'}`}>
-                                            <p className="text-sm">{message.content}</p>
+                                            {message.role === 'ai' && message.audioDataUri ? (
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm">{message.content}</p>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setCurrentAudio(message.audioDataUri!)}>
+                                                        <Volume2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm">{message.content}</p>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -338,6 +382,8 @@ export default function CounselPage({ params }: { params: { id: string } }) {
             </div>
         </div>
       </main>
+
+      {currentAudio && <audio ref={audioRef} src={currentAudio} />}
 
       <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
         <DialogContent className="max-w-3xl">
