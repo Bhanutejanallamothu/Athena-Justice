@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { notFound, useRouter } from 'next/navigation';
+import { notFound, useRouter, useParams } from 'next/navigation';
 import { Bot, ChevronLeft, Loader2, Mic, Send, FileText, Sparkles, Volume2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -41,10 +41,12 @@ type Message = {
   audioDataUri?: string;
 };
 
-export default function CounselPage({ params }: { params: { id: string } }) {
+export default function CounselPage({ params: propParams }: { params: { id: string } }) {
   const router = useRouter();
+  const params = useParams();
+  const id = (params.id || propParams.id) as string;
   const { toast } = useToast();
-  const sheeter = React.useMemo(() => getSheeterById(params.id), [params.id]);
+  const sheeter = React.useMemo(() => getSheeterById(id), [id]);
 
   const [prepData, setPrepData] = React.useState<AICounselingPrepOutput | null>(null);
   const [reportData, setReportData] = React.useState<AutomatedInteractionReportOutput | null>(null);
@@ -451,7 +453,7 @@ export default function CounselPage({ params }: { params: { id: string } }) {
             <Button onClick={() => {
                 toast({ title: 'Report Saved', description: 'The interaction report has been saved to the sheeter profile.'});
                 setIsReportDialogOpen(false);
-                router.push(`/sheeters/${params.id}`);
+                router.push(`/sheeters/${id}`);
             }}>Save Report</Button>
           </DialogFooter>
         </DialogContent>
