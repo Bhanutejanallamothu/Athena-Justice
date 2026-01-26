@@ -51,7 +51,8 @@ const prompt = ai.definePrompt({
   The question should be open-ended and avoid leading the sheeter towards a specific answer. Focus on promoting self-awareness and personal responsibility.
   Ensure the question is neutral and professional, with no emotional manipulation or coercion.
   The question should be appropriate for a law enforcement setting and comply with ethical guidelines for AI use in counseling.
-  Please only respond with the question, and nothing else.`,
+  
+  Your response should be a JSON object with a single key "question" containing the generated question.`,
 });
 
 const voiceToVoiceQuestionFlow = ai.defineFlow(

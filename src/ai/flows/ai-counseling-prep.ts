@@ -67,7 +67,7 @@ const prompt = ai.definePrompt({
 
   Criminal History:
   {{#if criminalHistory}}
-  - Cases: 
+  - Cases:
     {{#each criminalHistory}}
       - {{{this.cases}}} (Sections: {{{this.sections}}}, Frequency: {{{this.frequency}}})
     {{/each}}
@@ -93,7 +93,7 @@ const prompt = ai.definePrompt({
 
   Based on this profile, suggest 3-5 focus areas and 3-5 context-appropriate questions for the counseling session.
 
-  Format your output as a JSON object with 'focusAreas' and 'suggestedQuestions' keys.  Each should be an array of strings.
+  Format your output as a JSON object that adheres to the defined schema.
   `,config: {
     safetySettings: [
       {

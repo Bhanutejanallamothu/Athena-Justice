@@ -41,20 +41,14 @@ const prompt = ai.definePrompt({
 
   Based on the criminal history, behavioral patterns, previous counseling responses, and the current session transcript, generate a comprehensive interaction report.
 
-  Include emotional indicators, cooperation level, behavioral change trend, risk level reassessment, a session summary, and recommended next action. Ensure the report is detailed and provides actionable insights for the counselor.
+  Your analysis should cover emotional indicators, cooperation level, behavioral change trend, risk level reassessment, a session summary, and a recommended next action. The report must be detailed and provide actionable insights for the counselor.
 
   Criminal History: {{{criminalHistory}}}
   Behavioral Patterns: {{{behavioralPatterns}}}
   Previous Counseling Responses: {{{previousCounselingResponses}}}
   Session Transcript: {{{sessionTranscript}}}
 
-  Output the following fields, in JSON format:
-  - emotionalIndicators: The emotional indicators observed during the session (e.g., calm, aggressive, defensive).
-  - cooperationLevel: The level of cooperation exhibited by the rowdy sheeter during the session.
-  - behavioralChangeTrend: The trend in behavioral change observed based on previous sessions.
-  - riskLevelReassessment: A reassessment of the rowdy sheeter’s risk level based on the session.
-  - sessionSummary: A summary of the key points and outcomes of the counseling session.
-  - recommendedNextAction: Recommended next steps such as further counseling, monitoring, referral to rehabilitation, or legal escalation.
+  Format your output as a JSON object that adheres to the defined schema.
   `,
 });
 
