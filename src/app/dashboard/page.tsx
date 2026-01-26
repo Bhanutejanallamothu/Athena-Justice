@@ -62,6 +62,19 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+const highPriorityCases = [
+  { name: 'Ajay Kumar', id: 'RS-001', risk: 'High' },
+  { name: 'Rakesh Sharma', id: 'RS-004', risk: 'Medium' },
+  { name: 'Vijay Singh', id: 'RS-002', risk: 'Medium' },
+];
+
+const riskLevelVariant = {
+  Low: 'success',
+  Medium: 'warning',
+  High: 'destructive',
+} as const;
+
+
 export default function DashboardPage() {
   return (
     <AppLayout>
@@ -175,39 +188,21 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell>
-                      <div className="font-medium">Ajay Kumar</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                        RS-001
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="destructive">High</Badge>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>
-                      <div className="font-medium">Rakesh Sharma</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                        RS-004
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="warning">Medium</Badge>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>
-                      <div className="font-medium">Vijay Singh</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                        RS-002
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="warning">Medium</Badge>
-                    </TableCell>
-                  </TableRow>
+                  {highPriorityCases.map((sheeter) => (
+                    <TableRow key={sheeter.id}>
+                      <TableCell>
+                        <div className="font-medium">{sheeter.name}</div>
+                        <div className="hidden text-sm text-muted-foreground md:inline">
+                          {sheeter.id}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={riskLevelVariant[sheeter.risk as keyof typeof riskLevelVariant]}>
+                          {sheeter.risk}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>

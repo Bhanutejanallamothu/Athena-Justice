@@ -54,7 +54,10 @@ const prompt = ai.definePrompt({
   - Case: {{{this.cases}}}, Sections: {{{this.sections}}}, Frequency: {{{this.frequency}}}
   {{/each}}
   
-  Behavioral Patterns: {{{behavioralPatterns}}}
+  Behavioral Patterns:
+  {{#each behavioralPatterns}}
+  - {{{this}}}
+  {{/each}}
   
   Previous Counseling Responses:
   {{#each previousCounselingResponses}}
