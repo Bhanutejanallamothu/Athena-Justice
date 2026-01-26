@@ -6,10 +6,9 @@ import { Bot, ChevronLeft, Loader2, Mic, Send, FileText, Sparkles, Volume2 } fro
 import Link from 'next/link';
 
 import { aiCounselingPrep, AICounselingPrepOutput } from '@/ai/flows/ai-counseling-prep';
-import { generateQuestion } from '@/ai/flows/voice-to-voice-question-flow';
+import { liveCounseling } from '@/ai/flows/live-counseling-flow';
 import { automatedInteractionReport, AutomatedInteractionReportOutput } from '@/ai/flows/automated-interaction-report';
 import { speechToText } from '@/ai/flows/speech-to-text-flow';
-import { textToSpeech } from '@/ai/flows/text-to-speech-flow';
 
 import { getSheeterById } from '@/lib/data';
 import type { Sheeter } from '@/lib/types';
@@ -51,7 +50,7 @@ export default function CounselPage({ params }: { params: { id: string } }) {
   const [reportData, setReportData] = React.useState<AutomatedInteractionReportOutput | null>(null);
   const [isLoadingPrep, setIsLoadingPrep] = React.useState(true);
   const [isLoadingReport, setIsLoadingReport] = React.useState(false);
-  const [isLoadingQuestion, setIsLoadingQuestion] = React.useState(false);
+  const [isLoadingAIResponse, setIsLoadingAIResponse] = React.useState(false);
   const [sessionStarted, setSessionStarted] = React.useState(false);
   const [isReportDialogOpen, setIsReportDialogOpen] = React.useState(false);
 
@@ -99,68 +98,85 @@ export default function CounselPage({ params }: { params: { id: string } }) {
     getPrepData();
   }, [sheeter, toast]);
 
+  const getAIResponse = React.useCallback(async () => {
+    if (!sheeter) return;
+    setIsLoadingAIResponse(true);
+    setCurrentAudio(null);
+    
+    const latestSheeterMessage = messages.findLast(m => m.role === 'sheeter')?.content || '';
+
+    try {
+        const result = await liveCounseling({
+            sheeterProfile: {
+                personalDetails: { ...sheeter.personalDetails },
+                criminalHistory: sheeter.criminalHistory,
+                behavioralTags: sheeter.behavioralTags,
+                riskLevel: sheeter.riskLevel,
+            },
+            conversationHistory: messages,
+            latestSheeterMessage: latestSheeterMessage,
+        });
+        
+        setCurrentAudio(result.audioDataUri);
+        setMessages(prev => [...prev, { role: 'ai', content: result.responseText, audioDataUri: result.audioDataUri }]);
+
+    } catch (error) {
+        console.error('Failed to get AI response', error);
+        toast({
+            variant: 'destructive',
+            title: 'AI Error',
+            description: 'Could not get the next response.',
+        });
+    } finally {
+        setIsLoadingAIResponse(false);
+    }
+  }, [sheeter, messages, toast]);
+
+  React.useEffect(() => {
+    if (!sessionStarted || messages.length === 0) return;
+    
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role === 'sheeter') {
+        getAIResponse();
+    }
+  }, [sessionStarted, messages, getAIResponse]);
+
+
   const handleStartSession = async () => {
+    if (!sheeter) return;
     setSessionStarted(true);
-    if (prepData?.suggestedQuestions?.[0]) {
-      const firstQuestion = prepData.suggestedQuestions[0];
-      let audioDataUri: string | undefined;
-      try {
-        const { audioDataUri: audio } = await textToSpeech({ text: firstQuestion });
-        audioDataUri = audio;
-        setCurrentAudio(audioDataUri);
-      } catch (error) {
-        console.error('TTS Error on start:', error);
-      }
-      setMessages([{ role: 'ai', content: firstQuestion, audioDataUri }]);
-    } else {
-        await getNextQuestion();
+    setIsLoadingAIResponse(true);
+    setCurrentAudio(null);
+    try {
+        const result = await liveCounseling({
+            sheeterProfile: {
+                personalDetails: { ...sheeter.personalDetails },
+                criminalHistory: sheeter.criminalHistory,
+                behavioralTags: sheeter.behavioralTags,
+                riskLevel: sheeter.riskLevel,
+            },
+            conversationHistory: [],
+            latestSheeterMessage: '[START_SESSION]',
+        });
+        setCurrentAudio(result.audioDataUri);
+        setMessages([{ role: 'ai', content: result.responseText, audioDataUri: result.audioDataUri }]);
+    } catch (error) {
+        console.error('Failed to start session', error);
+        toast({
+            variant: 'destructive',
+            title: 'AI Error',
+            description: 'Could not start the counseling session.',
+        });
+        setSessionStarted(false);
+    } finally {
+        setIsLoadingAIResponse(false);
     }
   };
 
-  const getNextQuestion = async () => {
-    if (!sheeter) return;
-    setIsLoadingQuestion(true);
-    setCurrentAudio(null);
-    try {
-        const previousResponses = messages.filter(m => m.role === 'sheeter').map(m => m.content).join('\n');
-        const result = await generateQuestion({
-            profileDetails: JSON.stringify(sheeter.personalDetails),
-            criminalHistory: sheeter.criminalHistory.map(h => h.cases).join(', '),
-            behavioralPatterns: sheeter.behavioralTags.join(', '),
-            previousResponses: previousResponses,
-        });
-        
-        let audioDataUri: string | undefined;
-        try {
-            const { audioDataUri: audio } = await textToSpeech({ text: result.question });
-            audioDataUri = audio;
-            setCurrentAudio(audioDataUri);
-        } catch (audioError) {
-            console.error('TTS Error:', audioError);
-            toast({
-                variant: "destructive",
-                title: "Audio Generation Failed",
-                description: "Could not generate voice for the question."
-            });
-        }
-        setMessages(prev => [...prev, { role: 'ai', content: result.question, audioDataUri }]);
-    } catch (error) {
-        console.error('Failed to generate question', error);
-        toast({
-            variant: 'destructive',
-            title: 'AI Question Failed',
-            description: 'Could not generate the next question.'
-        })
-    } finally {
-        setIsLoadingQuestion(false);
-    }
-  }
-
-  const handleSendResponse = async () => {
+  const handleSendResponse = () => {
     if (!currentResponse.trim()) return;
-    setMessages(prev => [...prev, { role: 'sheeter', content: currentResponse }]);
+    setMessages(prev => [...prev, { role: 'sheeter', content: currentResponse.trim() }]);
     setCurrentResponse('');
-    await getNextQuestion();
   };
   
   const handleMicClick = async () => {
@@ -310,12 +326,12 @@ export default function CounselPage({ params }: { params: { id: string } }) {
                         <Card className="max-w-md">
                             <CardHeader>
                                 <CardTitle>Ready to Begin?</CardTitle>
-                                <CardDescription>Start the voice-to-voice counseling session with {sheeter.personalDetails.name}.</CardDescription>
+                                <CardDescription>Start the AI-driven counseling session with {sheeter.personalDetails.name}.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <Button size="lg" onClick={handleStartSession} disabled={isLoadingPrep}>
                                     {isLoadingPrep ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mic className="mr-2 h-4 w-4" />}
-                                    Start Session
+                                    Start Live Interview
                                 </Button>
                             </CardContent>
                         </Card>
@@ -341,7 +357,7 @@ export default function CounselPage({ params }: { params: { id: string } }) {
                                         </div>
                                     </div>
                                 ))}
-                                {isLoadingQuestion && (
+                                {isLoadingAIResponse && (
                                     <div className="flex items-start gap-3">
                                         <Avatar className="h-8 w-8 bg-primary text-primary-foreground flex items-center justify-center"><Bot className="h-5 w-5"/></Avatar>
                                         <div className="rounded-lg p-3 bg-muted">
@@ -362,7 +378,7 @@ export default function CounselPage({ params }: { params: { id: string } }) {
                                     value={currentResponse}
                                     onChange={(e) => setCurrentResponse(e.target.value)}
                                     className="flex-1"
-                                    disabled={isRecording || isLoadingTranscription}
+                                    disabled={isRecording || isLoadingTranscription || isLoadingAIResponse}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -370,10 +386,10 @@ export default function CounselPage({ params }: { params: { id: string } }) {
                                         }
                                     }}
                                 />
-                                <Button onClick={handleMicClick} variant={isRecording ? 'destructive' : 'outline'} size="icon" disabled={isLoadingTranscription}>
+                                <Button onClick={handleMicClick} variant={isRecording ? 'destructive' : 'outline'} size="icon" disabled={isLoadingTranscription || isLoadingAIResponse}>
                                     {isLoadingTranscription ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
                                 </Button>
-                                <Button onClick={handleSendResponse} disabled={!currentResponse.trim() || isLoadingQuestion || isRecording || isLoadingTranscription}><Send className="h-4 w-4"/></Button>
+                                <Button onClick={handleSendResponse} disabled={!currentResponse.trim() || isLoadingAIResponse || isRecording || isLoadingTranscription}><Send className="h-4 w-4"/></Button>
                             </div>
                             <Button variant="destructive" onClick={handleEndSession}>End Session & Generate Report</Button>
                         </div>
