@@ -235,7 +235,7 @@ export default function CounselPage({ params: propParams }: { params: { id: stri
         const report = await automatedInteractionReport({
             criminalHistory: sheeter.criminalHistory.map(h => h.cases).join(', '),
             behavioralPatterns: sheeter.behavioralTags.join(', '),
-            previousCounselingSummaries: sheeter.previousCounselingSummaries.join('\n'),
+            previousCounselingResponses: sheeter.previousCounselingSummaries.join('\n'),
             sessionTranscript: sessionTranscript,
         });
         setReportData(report);

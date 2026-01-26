@@ -54,11 +54,11 @@ const chartData = [
 const chartConfig = {
   success: {
     label: 'Success',
-    color: 'hsl(var(--chart-2))',
+    color: 'hsl(var(--success))',
   },
   failure: {
     label: 'Failure',
-    color: 'hsl(var(--chart-1))',
+    color: 'hsl(var(--destructive))',
   },
 } satisfies ChartConfig;
 
@@ -194,7 +194,7 @@ export default function DashboardPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge variant="destructive" className="bg-yellow-500 text-black hover:bg-yellow-500/80">Medium</Badge>
+                      <Badge variant="warning">Medium</Badge>
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -205,7 +205,7 @@ export default function DashboardPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge variant="destructive" className="bg-yellow-500 text-black hover:bg-yellow-500/80">Medium</Badge>
+                      <Badge variant="warning">Medium</Badge>
                     </TableCell>
                   </TableRow>
                 </TableBody>

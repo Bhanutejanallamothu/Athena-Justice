@@ -48,8 +48,8 @@ export function SheeterDataTable({ initialSheeters }: SheeterDataTableProps) {
   };
 
   const riskLevelVariant = {
-    Low: 'default',
-    Medium: 'secondary',
+    Low: 'success',
+    Medium: 'warning',
     High: 'destructive',
   } as const;
 

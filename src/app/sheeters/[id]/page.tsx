@@ -40,9 +40,9 @@ export default function SheeterProfilePage({ params }: { params: { id: string } 
   }
 
   const riskLevelColor = {
-    Low: 'bg-green-500',
-    Medium: 'bg-yellow-500',
-    High: 'bg-red-500',
+    Low: 'bg-success',
+    Medium: 'bg-warning',
+    High: 'bg-destructive',
   };
 
   return (
