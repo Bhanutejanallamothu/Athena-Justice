@@ -40,7 +40,7 @@ const LiveCounselingInputSchema = z.object({
 export type LiveCounselingInput = z.infer<typeof LiveCounselingInputSchema>;
 
 const LiveCounselingOutputSchema = z.object({
-    responseText: z.string(),
+    responseText: z.string().describe("The AI counselor's response in the conversation, in Telugu."),
     audioDataUri: z.string(),
 });
 export type LiveCounselingOutput = z.infer<typeof LiveCounselingOutputSchema>;
@@ -57,13 +57,13 @@ const prompt = ai.definePrompt({
       latestSheeterMessage: z.string(),
   }) },
   output: { schema: z.object({
-      responseText: z.string().describe("The AI counselor's response in the conversation."),
+      responseText: z.string().describe("The AI counselor's response in the conversation, in Telugu."),
   })},
-  prompt: `You are an AI assistant acting as a professional counselor for a police department. You are conducting a live interview with a "rowdy sheeter". Your goal is to examine their current status and behavior by engaging in a conversation.
+  prompt: `You are an AI assistant acting as a professional counselor for a police department. You are conducting a live interview with a "rowdy sheeter". Your goal is to examine their current status and behavior by engaging in a conversation. The entire conversation MUST be in Telugu.
 
   Maintain an empathetic, neutral, and professional tone. Ask open-ended questions to encourage self-reflection. Do not be accusatory. Guide the conversation based on their profile and their responses. Keep your responses concise and conversational.
 
-  If the latest message is '[START_SESSION]', begin the interview with a brief introduction and an opening question.
+  If the latest message is '[START_SESSION]', begin the interview with a brief introduction and an opening question in Telugu.
 
   **Sheeter Profile:**
   - Name: {{{sheeterProfile.personalDetails.name}}}
@@ -79,7 +79,7 @@ const prompt = ai.definePrompt({
   **Sheeter's Latest Message:**
   {{{latestSheeterMessage}}}
 
-  Generate your next response to the sheeter. Format your output as a JSON object that adheres to the defined schema.
+  Generate your next response to the sheeter in Telugu. Format your output as a JSON object that adheres to the defined schema.
   `,
 });
 

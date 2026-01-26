@@ -40,7 +40,7 @@ export type AICounselingPrepInput = z.infer<typeof AICounselingPrepInputSchema>;
 
 const AICounselingPrepOutputSchema = z.object({
   focusAreas: z.array(z.string()).describe('Suggested focus areas for the counseling session.'),
-  suggestedQuestions: z.array(z.string()).describe('Context-appropriate questions for the counseling session.'),
+  suggestedQuestions: z.array(z.string()).describe('Context-appropriate questions for the counseling session, in Telugu.'),
 });
 
 export type AICounselingPrepOutput = z.infer<typeof AICounselingPrepOutputSchema>;
@@ -91,7 +91,7 @@ const prompt = ai.definePrompt({
   - No previous counseling summaries available.
   {{/if}}
 
-  Based on this profile, suggest 3-5 focus areas and 3-5 context-appropriate questions for the counseling session.
+  Based on this profile, suggest 3-5 focus areas in English, and 3-5 context-appropriate questions for the counseling session in Telugu.
 
   Format your output as a JSON object that adheres to the defined schema.
   `,config: {

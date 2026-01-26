@@ -70,9 +70,7 @@ const textToSpeechFlow = ai.defineFlow(
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {voiceName: 'Algenib'},
-          },
+          languageCode: 'te-IN',
         },
       },
       prompt: text,

@@ -21,7 +21,7 @@ const SpeechToTextInputSchema = z.object({
 export type SpeechToTextInput = z.infer<typeof SpeechToTextInputSchema>;
 
 const SpeechToTextOutputSchema = z.object({
-  transcript: z.string().describe('The transcribed text from the audio.'),
+  transcript: z.string().describe('The transcribed text from the audio, in Telugu.'),
 });
 export type SpeechToTextOutput = z.infer<typeof SpeechToTextOutputSchema>;
 
@@ -33,7 +33,7 @@ const prompt = ai.definePrompt({
   name: 'speechToTextPrompt',
   input: {schema: SpeechToTextInputSchema},
   output: {schema: SpeechToTextOutputSchema},
-  prompt: `Transcribe the following audio. Only return the transcribed text.
+  prompt: `Transcribe the following audio. The audio is in Telugu. Only return the transcribed text in Telugu script.
 Audio: {{media url=audioDataUri}}`,
 });
 
