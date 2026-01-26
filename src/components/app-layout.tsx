@@ -106,7 +106,7 @@ function CollapsedUserMenu() {
     );
   }
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { state } = useSidebar();
   
@@ -116,7 +116,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <SidebarProvider>
+    <>
       <Sidebar>
         <SidebarHeader>
           <Logo iconClassName="text-sidebar-foreground" textClassName="text-sidebar-foreground"/>
@@ -143,6 +143,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
+    </>
+  );
+}
+
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
     </SidebarProvider>
   );
 }
