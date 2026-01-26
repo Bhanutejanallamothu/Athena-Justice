@@ -78,7 +78,7 @@ const textToSpeechFlow = ai.defineFlow(
           languageCode: 'te-IN',
         },
       },
-      prompt: text,
+      prompt: [{ text }],
     });
     if (!media) {
       throw new Error('no media returned');
