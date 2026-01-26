@@ -1,5 +1,3 @@
-'use server';
-
 import { serve } from '@genkit-ai/next';
 
 // This is where all the Genkit flows are actually defined.
