@@ -65,6 +65,11 @@ const textToSpeechFlow = ai.defineFlow(
     outputSchema: TextToSpeechOutputSchema,
   },
   async ({text}) => {
+    if (!text?.trim()) {
+      // Return a short silent WAV file if there's no text.
+      // This avoids an error with an empty prompt to the TTS service.
+      return { audioDataUri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
+    }
     const {media} = await ai.generate({
       model: googleAI.model('gemini-2.5-flash-preview-tts'),
       config: {
@@ -73,7 +78,7 @@ const textToSpeechFlow = ai.defineFlow(
           languageCode: 'te-IN',
         },
       },
-      prompt: text,
+      prompt: [{text}], // Explicitly structure prompt as a text part
     });
     if (!media) {
       throw new Error('no media returned');
