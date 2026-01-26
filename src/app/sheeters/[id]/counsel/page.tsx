@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { aiCounselingPrep, AICounselingPrepOutput } from '@/ai/flows/ai-counseling-prep';
 import { generateQuestion } from '@/ai/flows/voice-to-voice-question-flow';
 import { automatedInteractionReport, AutomatedInteractionReportOutput } from '@/ai/flows/automated-interaction-report';
+import { speechToText } from '@/ai/flows/speech-to-text-flow';
 
 import { getSheeterById } from '@/lib/data';
 import type { Sheeter } from '@/lib/types';
@@ -30,6 +31,9 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import { Avatar } from '@/components/ui/avatar';
+
 
 type Message = {
   role: 'ai' | 'sheeter';
@@ -51,6 +55,10 @@ export default function CounselPage({ params }: { params: { id: string } }) {
 
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [currentResponse, setCurrentResponse] = React.useState('');
+
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [isLoadingTranscription, setIsLoadingTranscription] = React.useState(false);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
 
   React.useEffect(() => {
     if (!sheeter) return;
@@ -119,6 +127,51 @@ export default function CounselPage({ params }: { params: { id: string } }) {
     setCurrentResponse('');
     await getNextQuestion();
   };
+  
+  const handleMicClick = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      setIsLoadingTranscription(true);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
+        const audioChunks: Blob[] = [];
+        
+        recorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+
+        recorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            const base64Audio = reader.result as string;
+            try {
+              const { transcript } = await speechToText({ audioDataUri: base64Audio });
+              setCurrentResponse(prev => prev ? `${prev} ${transcript}` : transcript);
+            } catch (error) {
+              console.error("Transcription failed", error);
+              toast({ variant: 'destructive', title: 'Transcription Failed', description: 'Could not process audio.' });
+            } finally {
+              setIsLoadingTranscription(false);
+              stream.getTracks().forEach(track => track.stop());
+            }
+          };
+        };
+
+        recorder.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error("Could not start recording", error);
+        toast({ variant: 'destructive', title: 'Mic Error', description: 'Could not access microphone.' });
+      }
+    }
+  };
+
 
   const handleEndSession = async () => {
     if (!sheeter) return;
@@ -258,10 +311,14 @@ export default function CounselPage({ params }: { params: { id: string } }) {
                         <div className="mt-4 flex flex-col gap-4">
                             <div className="flex gap-2">
                                 <Textarea
-                                    placeholder="Transcribe sheeter's response here..."
+                                    placeholder={
+                                        isLoadingTranscription ? "Transcribing..." : 
+                                        isRecording ? "Recording..." : "Transcribe sheeter's response here, or use the mic to record."
+                                    }
                                     value={currentResponse}
                                     onChange={(e) => setCurrentResponse(e.target.value)}
                                     className="flex-1"
+                                    disabled={isRecording || isLoadingTranscription}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -269,7 +326,10 @@ export default function CounselPage({ params }: { params: { id: string } }) {
                                         }
                                     }}
                                 />
-                                <Button onClick={handleSendResponse} disabled={!currentResponse.trim() || isLoadingQuestion}><Send className="h-4 w-4"/></Button>
+                                <Button onClick={handleMicClick} variant={isRecording ? 'destructive' : 'outline'} size="icon" disabled={isLoadingTranscription}>
+                                    {isLoadingTranscription ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+                                </Button>
+                                <Button onClick={handleSendResponse} disabled={!currentResponse.trim() || isLoadingQuestion || isRecording || isLoadingTranscription}><Send className="h-4 w-4"/></Button>
                             </div>
                             <Button variant="destructive" onClick={handleEndSession}>End Session & Generate Report</Button>
                         </div>
