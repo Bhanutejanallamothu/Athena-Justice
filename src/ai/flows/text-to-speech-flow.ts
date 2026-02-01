@@ -11,6 +11,48 @@
 import {z} from 'zod';
 import wav from 'wav';
 
+// Helper functions for retry logic
+const MAX_RETRIES = 4;
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      const response = await fetch(url, options);
+
+      if (response.status === 429) {
+        let waitTime = Math.pow(2, i) * 500 + Math.random() * 100; // Exponential backoff with jitter
+        
+        const retryAfterHeader = response.headers.get('Retry-After');
+        if (retryAfterHeader) {
+            const retryAfterSeconds = parseInt(retryAfterHeader, 10);
+            if (!isNaN(retryAfterSeconds)) {
+                waitTime = retryAfterSeconds * 1000;
+            }
+        }
+        
+        console.warn(`API rate limited. Retrying in ${waitTime.toFixed(0)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`);
+        await sleep(waitTime);
+        lastError = new Error(`Request failed with status ${response.status}.`);
+        continue;
+      }
+      
+      return response;
+
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const waitTime = Math.pow(2, i) * 500 + Math.random() * 100;
+      console.warn(`Fetch failed. Retrying in ${waitTime.toFixed(0)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`, error);
+      await sleep(waitTime);
+    }
+  }
+
+  throw lastError ?? new Error(`Request failed after ${MAX_RETRIES} retries.`);
+}
+
 const TextToSpeechInputSchema = z.object({
   text: z.string().describe('The text to convert to speech.'),
 });
@@ -58,7 +100,7 @@ export async function textToSpeech(input: TextToSpeechInput): Promise<TextToSpee
     return { audioDataUri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
   }
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     'https://texttospeech.googleapis.com/v1/text:synthesize',
     {
       method: 'POST',

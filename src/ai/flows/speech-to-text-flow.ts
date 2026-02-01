@@ -10,6 +10,48 @@
 
 import {z} from 'zod';
 
+// Helper functions for retry logic
+const MAX_RETRIES = 4;
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      const response = await fetch(url, options);
+
+      if (response.status === 429) {
+        let waitTime = Math.pow(2, i) * 500 + Math.random() * 100; // Exponential backoff with jitter
+        
+        const retryAfterHeader = response.headers.get('Retry-After');
+        if (retryAfterHeader) {
+            const retryAfterSeconds = parseInt(retryAfterHeader, 10);
+            if (!isNaN(retryAfterSeconds)) {
+                waitTime = retryAfterSeconds * 1000;
+            }
+        }
+        
+        console.warn(`API rate limited. Retrying in ${waitTime.toFixed(0)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`);
+        await sleep(waitTime);
+        lastError = new Error(`Request failed with status ${response.status}.`);
+        continue;
+      }
+      
+      return response;
+
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const waitTime = Math.pow(2, i) * 500 + Math.random() * 100;
+      console.warn(`Fetch failed. Retrying in ${waitTime.toFixed(0)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`, error);
+      await sleep(waitTime);
+    }
+  }
+
+  throw lastError ?? new Error(`Request failed after ${MAX_RETRIES} retries.`);
+}
+
 const SpeechToTextInputSchema = z.object({
   audioDataUri: z
     .string()
@@ -33,7 +75,7 @@ export async function speechToText(input: SpeechToTextInput): Promise<SpeechToTe
   }
   const [, mimeType, base64Data] = match;
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
     {
       method: "POST",
