@@ -8,9 +8,7 @@
  * - TextToSpeechOutput - The return type for the textToSpeech function.
  */
 
-import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
-import {z} from 'genkit';
+import {z} from 'zod';
 import wav from 'wav';
 
 const TextToSpeechInputSchema = z.object({
@@ -27,10 +25,6 @@ const TextToSpeechOutputSchema = z.object({
 });
 export type TextToSpeechOutput = z.infer<typeof TextToSpeechOutputSchema>;
 
-export async function textToSpeech(input: TextToSpeechInput): Promise<TextToSpeechOutput> {
-  return textToSpeechFlow(input);
-}
-
 async function toWav(
   pcmData: Buffer,
   channels = 1,
@@ -44,7 +38,7 @@ async function toWav(
       bitDepth: sampleWidth * 8,
     });
 
-    let bufs = [] as any[];
+    let bufs: any[] = [];
     writer.on('error', reject);
     writer.on('data', function (d) {
       bufs.push(d);
@@ -58,48 +52,52 @@ async function toWav(
   });
 }
 
-const ttsPrompt = ai.definePrompt({
-  name: 'textToSpeechPrompt',
-  input: { schema: TextToSpeechInputSchema },
-  prompt: `{{{text}}}`,
-  config: {
-    model: googleAI.model('gemini-2.5-flash-preview-tts'),
-    responseModalities: ['AUDIO'],
-    speechConfig: {
-      languageCode: 'te-IN',
-    },
-  },
-});
-
-
-const textToSpeechFlow = ai.defineFlow(
-  {
-    name: 'textToSpeechFlow',
-    inputSchema: TextToSpeechInputSchema,
-    outputSchema: TextToSpeechOutputSchema,
-  },
-  async (input) => {
-    if (!input.text?.trim()) {
-      // Return a short silent WAV file if there's no text.
-      // This avoids an error with an empty prompt to the TTS service.
-      return { audioDataUri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
-    }
-    
-    const response = await ttsPrompt(input);
-    const media = response.media;
-
-    if (!media) {
-      throw new Error('no media returned');
-    }
-    const audioBuffer = Buffer.from(
-      media.url.substring(media.url.indexOf(',') + 1),
-      'base64'
-    );
-
-    const wavBase64 = await toWav(audioBuffer);
-
-    return {
-      audioDataUri: 'data:audio/wav;base64,' + wavBase64,
-    };
+export async function textToSpeech(input: TextToSpeechInput): Promise<TextToSpeechOutput> {
+  if (!input.text?.trim()) {
+    // Return a short silent WAV file if there's no text.
+    return { audioDataUri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
   }
-);
+
+  const response = await fetch(
+    'https://texttospeech.googleapis.com/v1/text:synthesize',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-goog-api-key': process.env.GEMINI_API_KEY as string,
+      },
+      body: JSON.stringify({
+        input: {
+          text: input.text,
+        },
+        voice: {
+          languageCode: 'te-IN',
+        },
+        audioConfig: {
+          audioEncoding: 'LINEAR16',
+          sampleRateHertz: 24000,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.text();
+    console.error('Google Text-to-Speech API Error:', err);
+    throw new Error(`Google TTS API request failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const pcmBase64 = data.audioContent;
+
+  if (!pcmBase64) {
+    throw new Error('No audio content returned from TTS API');
+  }
+
+  const audioBuffer = Buffer.from(pcmBase64, 'base64');
+  const wavBase64 = await toWav(audioBuffer);
+
+  return {
+    audioDataUri: 'data:audio/wav;base64,' + wavBase64,
+  };
+}

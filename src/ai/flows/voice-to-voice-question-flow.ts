@@ -7,8 +7,7 @@
  * - VoiceToVoiceQuestionOutput - The return type for the generateQuestion function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const VoiceToVoiceQuestionInputSchema = z.object({
   profileDetails: z
@@ -31,38 +30,61 @@ const VoiceToVoiceQuestionOutputSchema = z.object({
 });
 export type VoiceToVoiceQuestionOutput = z.infer<typeof VoiceToVoiceQuestionOutputSchema>;
 
-export async function generateQuestion(input: VoiceToVoiceQuestionInput): Promise<VoiceToVoiceQuestionOutput> {
-  return voiceToVoiceQuestionFlow(input);
+function buildPrompt(input: VoiceToVoiceQuestionInput): string {
+    return `You are an AI assistant designed to generate context-appropriate counseling questions based on the rowdy sheeter's profile and previous responses.
+
+Consider the following information about the rowdy sheeter:
+Profile Details: ${input.profileDetails}
+Criminal History: ${input.criminalHistory}
+Behavioral Patterns: ${input.behavioralPatterns}
+Previous Responses: ${input.previousResponses}
+
+Based on this information, generate a single, clear, and concise question that encourages the rowdy sheeter to reflect on their behavior and consider positive changes.
+The question should be open-ended and avoid leading the sheeter towards a specific answer. Focus on promoting self-awareness and personal responsibility.
+Ensure the question is neutral and professional, with no emotional manipulation or coercion.
+The question should be appropriate for a law enforcement setting and comply with ethical guidelines for AI use in counseling.
+
+Your response should be a JSON object with a single key "question" containing the generated question.`;
 }
 
-const prompt = ai.definePrompt({
-  name: 'voiceToVoiceQuestionPrompt',
-  input: {schema: VoiceToVoiceQuestionInputSchema},
-  output: {schema: VoiceToVoiceQuestionOutputSchema},
-  prompt: `You are an AI assistant designed to generate context-appropriate counseling questions based on the rowdy sheeter's profile and previous responses.
+export async function generateQuestion(input: VoiceToVoiceQuestionInput): Promise<VoiceToVoiceQuestionOutput> {
+    const promptText = buildPrompt(input);
 
-  Consider the following information about the rowdy sheeter:
-  Profile Details: {{{profileDetails}}}
-  Criminal History: {{{criminalHistory}}}
-  Behavioral Patterns: {{{behavioralPatterns}}}
-  Previous Responses: {{{previousResponses}}}
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-goog-api-key": process.env.GEMINI_API_KEY as string,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: {
+            response_mime_type: "application/json",
+          },
+        }),
+      }
+    );
 
-  Based on this information, generate a single, clear, and concise question that encourages the rowdy sheeter to reflect on their behavior and consider positive changes.
-  The question should be open-ended and avoid leading the sheeter towards a specific answer. Focus on promoting self-awareness and personal responsibility.
-  Ensure the question is neutral and professional, with no emotional manipulation or coercion.
-  The question should be appropriate for a law enforcement setting and comply with ethical guidelines for AI use in counseling.
-  
-  Your response should be a JSON object with a single key "question" containing the generated question.`,
-});
+    if (!response.ok) {
+        const err = await response.text();
+        console.error("Gemini API Error:", err);
+        throw new Error(`Gemini API request failed: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-const voiceToVoiceQuestionFlow = ai.defineFlow(
-  {
-    name: 'voiceToVoiceQuestionFlow',
-    inputSchema: VoiceToVoiceQuestionInputSchema,
-    outputSchema: VoiceToVoiceQuestionOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
-  }
-);
+    if (!textOutput) {
+        throw new Error("Empty or invalid response from Gemini API");
+    }
+
+    try {
+        const jsonOutput = JSON.parse(textOutput);
+        return VoiceToVoiceQuestionOutputSchema.parse(jsonOutput);
+    } catch (e) {
+        console.error("Failed to parse Gemini response as JSON:", textOutput);
+        throw new Error("Invalid JSON response from AI.");
+    }
+}

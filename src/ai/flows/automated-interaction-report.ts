@@ -8,8 +8,7 @@
  * - AutomatedInteractionReportOutput - The return type for the automatedInteractionReport function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const AutomatedInteractionReportInputSchema = z.object({
   criminalHistory: z.array(
@@ -35,49 +34,72 @@ const AutomatedInteractionReportOutputSchema = z.object({
 });
 export type AutomatedInteractionReportOutput = z.infer<typeof AutomatedInteractionReportOutputSchema>;
 
-export async function automatedInteractionReport(input: AutomatedInteractionReportInput): Promise<AutomatedInteractionReportOutput> {
-  return automatedInteractionReportFlow(input);
+
+function buildPrompt(input: AutomatedInteractionReportInput): string {
+    const criminalHistorySection = input.criminalHistory.map(h => `- Case: ${h.cases}, Sections: ${h.sections}, Frequency: ${h.frequency}`).join('\n');
+    const behavioralPatternsSection = input.behavioralPatterns.map(p => `- ${p}`).join('\n');
+    const previousResponsesSection = input.previousCounselingResponses.map(r => `- ${r}`).join('\n');
+
+    return `You are an AI assistant that generates interaction reports after counseling sessions with rowdy sheeters.
+
+Based on the criminal history, behavioral patterns, previous counseling responses, and the current session transcript, generate a comprehensive interaction report.
+
+Your analysis should cover emotional indicators, cooperation level, behavioral change trend, risk level reassessment, a session summary, and a recommended next action. The report must be detailed and provide actionable insights for the counselor.
+
+Criminal History:
+${criminalHistorySection}
+
+Behavioral Patterns:
+${behavioralPatternsSection}
+
+Previous Counseling Responses:
+${previousResponsesSection}
+
+Session Transcript: ${input.sessionTranscript}
+
+Format your output as a JSON object that adheres to the defined schema.
+`;
 }
 
-const prompt = ai.definePrompt({
-  name: 'automatedInteractionReportPrompt',
-  input: {schema: AutomatedInteractionReportInputSchema},
-  output: {schema: AutomatedInteractionReportOutputSchema},
-  prompt: `You are an AI assistant that generates interaction reports after counseling sessions with rowdy sheeters.
 
-  Based on the criminal history, behavioral patterns, previous counseling responses, and the current session transcript, generate a comprehensive interaction report.
+export async function automatedInteractionReport(input: AutomatedInteractionReportInput): Promise<AutomatedInteractionReportOutput> {
+  const promptText = buildPrompt(input);
 
-  Your analysis should cover emotional indicators, cooperation level, behavioral change trend, risk level reassessment, a session summary, and a recommended next action. The report must be detailed and provide actionable insights for the counselor.
+  const response = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-goog-api-key": process.env.GEMINI_API_KEY as string,
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: {
+          response_mime_type: "application/json",
+        },
+      }),
+    }
+  );
 
-  Criminal History:
-  {{#each criminalHistory}}
-  - Case: {{{this.cases}}}, Sections: {{{this.sections}}}, Frequency: {{{this.frequency}}}
-  {{/each}}
-  
-  Behavioral Patterns:
-  {{#each behavioralPatterns}}
-  - {{{this}}}
-  {{/each}}
-  
-  Previous Counseling Responses:
-  {{#each previousCounselingResponses}}
-  - {{{this}}}
-  {{/each}}
-
-  Session Transcript: {{{sessionTranscript}}}
-
-  Format your output as a JSON object that adheres to the defined schema.
-  `,
-});
-
-const automatedInteractionReportFlow = ai.defineFlow(
-  {
-    name: 'automatedInteractionReportFlow',
-    inputSchema: AutomatedInteractionReportInputSchema,
-    outputSchema: AutomatedInteractionReportOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+  if (!response.ok) {
+    const err = await response.text();
+    console.error("Gemini API Error:", err);
+    throw new Error(`Gemini API request failed: ${response.statusText}`);
   }
-);
+
+  const data = await response.json();
+  const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!textOutput) {
+    throw new Error("Empty or invalid response from Gemini API");
+  }
+
+  try {
+    const jsonOutput = JSON.parse(textOutput);
+    return AutomatedInteractionReportOutputSchema.parse(jsonOutput);
+  } catch (e) {
+    console.error("Failed to parse Gemini response as JSON:", textOutput);
+    throw new Error("Invalid JSON response from AI.");
+  }
+}
