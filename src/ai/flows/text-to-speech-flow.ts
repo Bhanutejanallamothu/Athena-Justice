@@ -58,28 +58,36 @@ async function toWav(
   });
 }
 
+const ttsPrompt = ai.definePrompt({
+  name: 'textToSpeechPrompt',
+  input: { schema: TextToSpeechInputSchema },
+  prompt: `{{{text}}}`,
+  config: {
+    model: googleAI.model('gemini-2.5-flash-preview-tts'),
+    responseModalities: ['AUDIO'],
+    speechConfig: {
+      languageCode: 'te-IN',
+    },
+  },
+});
+
+
 const textToSpeechFlow = ai.defineFlow(
   {
     name: 'textToSpeechFlow',
     inputSchema: TextToSpeechInputSchema,
     outputSchema: TextToSpeechOutputSchema,
   },
-  async ({text}) => {
-    if (!text?.trim()) {
+  async (input) => {
+    if (!input.text?.trim()) {
       // Return a short silent WAV file if there's no text.
       // This avoids an error with an empty prompt to the TTS service.
       return { audioDataUri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
     }
-    const {media} = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-preview-tts'),
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          languageCode: 'te-IN',
-        },
-      },
-      prompt: [{ text }],
-    });
+    
+    const response = await ttsPrompt(input);
+    const media = response.media;
+
     if (!media) {
       throw new Error('no media returned');
     }

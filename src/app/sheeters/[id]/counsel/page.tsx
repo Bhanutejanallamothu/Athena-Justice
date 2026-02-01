@@ -98,7 +98,7 @@ export default function CounselPage({ params: propParams }: { params: { id: stri
     }
 
     getPrepData();
-  }, [sheeter]);
+  }, [sheeter, toast]);
 
   const getAIResponse = React.useCallback(async () => {
     if (!sheeter) return;
@@ -198,7 +198,8 @@ export default function CounselPage({ params: propParams }: { params: { id: stri
         };
 
         recorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunks, { type: mimeType });
           const reader = new FileReader();
           reader.readAsDataURL(audioBlob);
           reader.onloadend = async () => {
