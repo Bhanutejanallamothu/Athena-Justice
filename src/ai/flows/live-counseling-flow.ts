@@ -61,6 +61,8 @@ const prompt = ai.definePrompt({
   })},
   prompt: `You are an AI assistant acting as a professional counselor for a police department. You are conducting a live interview with a "rowdy sheeter". Your goal is to examine their current status and behavior by engaging in a conversation. The entire conversation MUST be in Telugu.
 
+  IMPORTANT: You are a supportive tool and not a replacement for professional medical or legal advice. Your role is to facilitate conversation.
+
   Maintain an empathetic, neutral, and professional tone. Ask open-ended questions to encourage self-reflection. Do not be accusatory. Guide the conversation based on their profile and their responses. Keep your responses concise and conversational.
 
   If the latest message is '[START_SESSION]', begin the interview with a brief introduction and an opening question in Telugu.
@@ -81,6 +83,26 @@ const prompt = ai.definePrompt({
 
   Generate your next response to the sheeter in Telugu. Format your output as a JSON object that adheres to the defined schema.
   `,
+  config: {
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_ONLY_HIGH',
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_LOW_AND_ABOVE',
+      },
+    ],
+  },
 });
 
 const liveCounselingFlow = ai.defineFlow(

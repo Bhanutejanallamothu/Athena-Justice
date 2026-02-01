@@ -187,8 +187,28 @@ export default function CounselPage({ params: propParams }: { params: { id: stri
       setIsRecording(false);
       setIsLoadingTranscription(true);
     } else {
+      let stream;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Try to get an optimized audio stream as recommended
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+          },
+        });
+      } catch (err) {
+        console.warn("Could not get optimized audio stream, falling back.", err);
+        try {
+            // Fallback to default audio settings if optimized fails
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (error) {
+            console.error("Could not start recording", error);
+            toast({ variant: 'destructive', title: 'Mic Error', description: 'Could not access microphone.' });
+            return;
+        }
+      }
+
+      try {
         const recorder = new MediaRecorder(stream);
         mediaRecorderRef.current = recorder;
         const audioChunks: Blob[] = [];
