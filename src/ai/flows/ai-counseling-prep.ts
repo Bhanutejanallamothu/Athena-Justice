@@ -135,46 +135,46 @@ export async function aiCounselingPrep(input: AICounselingPrepInput): Promise<AI
   const promptText = buildPrompt(input);
 
   const response = await fetchWithRetry(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    "http://localhost:8000/counsel/text",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-goog-api-key": process.env.GEMINI_API_KEY as string,
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }],
-        generationConfig: {
-          response_mime_type: "application/json",
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-        ],
+        message: promptText,
       }),
     }
   );
 
   if (!response.ok) {
     const err = await response.text();
-    console.error("Gemini API Error:", err);
-    throw new Error(`Gemini API request failed: ${response.statusText}`);
+    console.error("Local API Error:", err);
+    throw new Error(`Local API request failed: ${response.statusText}`);
   }
 
   const data = await response.json();
-  const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const textOutput = data.response_text;
+  const detectedState = data.detected_state;
 
   if (!textOutput) {
-    throw new Error("Empty or invalid response from Gemini API");
+    throw new Error("Empty or invalid response from Local API");
   }
 
-  try {
-    const jsonOutput = JSON.parse(textOutput);
-    return AICounselingPrepOutputSchema.parse(jsonOutput);
-  } catch (e) {
-    console.error("Failed to parse Gemini response as JSON:", textOutput);
-    throw new Error("Invalid JSON response from AI.");
-  }
+  // Mocking the required JSON output based on the local model's simple text response
+  const mockedOutput = {
+    focusAreas: [
+      `Detected State: ${detectedState}`,
+      "Review the suggested actionable steps",
+      "Assess immediate risk based on current mental state"
+    ],
+    suggestedQuestions: [
+      textOutput,
+      // Provide generic fallback questions in Telugu as requested by the original schema
+      "మీరు ఇప్పుడు ఎలా భావిస్తున్నారు?", // How are you feeling now?
+      "మనం దీని గురించి మరింత మాట్లాడగలమా?" // Can we talk more about this?
+    ]
+  };
+
+  return AICounselingPrepOutputSchema.parse(mockedOutput);
 }

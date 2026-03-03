@@ -8,7 +8,7 @@
  * - TextToSpeechOutput - The return type for the textToSpeech function.
  */
 
-import {z} from 'zod';
+import { z } from 'zod';
 import wav from 'wav';
 
 // Helper functions for retry logic
@@ -25,21 +25,21 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<Respon
 
       if (response.status === 429) {
         let waitTime = Math.pow(2, i) * 500 + Math.random() * 100; // Exponential backoff with jitter
-        
+
         const retryAfterHeader = response.headers.get('Retry-After');
         if (retryAfterHeader) {
-            const retryAfterSeconds = parseInt(retryAfterHeader, 10);
-            if (!isNaN(retryAfterSeconds)) {
-                waitTime = retryAfterSeconds * 1000;
-            }
+          const retryAfterSeconds = parseInt(retryAfterHeader, 10);
+          if (!isNaN(retryAfterSeconds)) {
+            waitTime = retryAfterSeconds * 1000;
+          }
         }
-        
+
         console.warn(`API rate limited. Retrying in ${waitTime.toFixed(0)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`);
         await sleep(waitTime);
         lastError = new Error(`Request failed with status ${response.status}.`);
         continue;
       }
-      
+
       return response;
 
     } catch (error) {
@@ -96,50 +96,37 @@ async function toWav(
 
 export async function textToSpeech(input: TextToSpeechInput): Promise<TextToSpeechOutput> {
   if (!input.text?.trim()) {
-    // Return a short silent WAV file if there's no text.
-    return { audioDataUri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
+    // Return a short silent MP3/WAV file if there's no text.
+    return { audioDataUri: 'data:audio/mp3;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' };
   }
 
   const response = await fetchWithRetry(
-    'https://texttospeech.googleapis.com/v1/text:synthesize',
+    "http://localhost:8000/counsel/text",
     {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'X-goog-api-key': process.env.GEMINI_API_KEY as string,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        input: {
-          text: input.text,
-        },
-        voice: {
-          languageCode: 'te-IN',
-        },
-        audioConfig: {
-          audioEncoding: 'LINEAR16',
-          sampleRateHertz: 24000,
-        },
+        message: input.text,
       }),
     }
   );
 
   if (!response.ok) {
     const err = await response.text();
-    console.error('Google Text-to-Speech API Error:', err);
-    throw new Error(`Google TTS API request failed: ${response.statusText}`);
+    console.error('Local API Error:', err);
+    throw new Error(`Local API request failed: ${response.statusText}`);
   }
 
   const data = await response.json();
-  const pcmBase64 = data.audioContent;
+  const wavBase64 = data.response_audio_wav_base64;
 
-  if (!pcmBase64) {
-    throw new Error('No audio content returned from TTS API');
+  if (!wavBase64) {
+    throw new Error('No audio content returned from Local API');
   }
 
-  const audioBuffer = Buffer.from(pcmBase64, 'base64');
-  const wavBase64 = await toWav(audioBuffer);
-
   return {
-    audioDataUri: 'data:audio/wav;base64,' + wavBase64,
+    audioDataUri: 'data:audio/mp3;base64,' + wavBase64,
   };
 }

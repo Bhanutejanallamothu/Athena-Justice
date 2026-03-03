@@ -8,7 +8,7 @@
  * - LiveCounselingOutput - The return type for the liveCounseling function.
  */
 
-import {z} from 'zod';
+import { z } from 'zod';
 import { textToSpeech } from './text-to-speech-flow';
 
 // Helper functions for retry logic
@@ -25,21 +25,21 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<Respon
 
       if (response.status === 429) {
         let waitTime = Math.pow(2, i) * 500 + Math.random() * 100; // Exponential backoff with jitter
-        
+
         const retryAfterHeader = response.headers.get('Retry-After');
         if (retryAfterHeader) {
-            const retryAfterSeconds = parseInt(retryAfterHeader, 10);
-            if (!isNaN(retryAfterSeconds)) {
-                waitTime = retryAfterSeconds * 1000;
-            }
+          const retryAfterSeconds = parseInt(retryAfterHeader, 10);
+          if (!isNaN(retryAfterSeconds)) {
+            waitTime = retryAfterSeconds * 1000;
+          }
         }
-        
+
         console.warn(`API rate limited. Retrying in ${waitTime.toFixed(0)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`);
         await sleep(waitTime);
         lastError = new Error(`Request failed with status ${response.status}.`);
         continue;
       }
-      
+
       return response;
 
     } catch (error) {
@@ -81,16 +81,16 @@ const LiveCounselingInputSchema = z.object({
 export type LiveCounselingInput = z.infer<typeof LiveCounselingInputSchema>;
 
 const LiveCounselingOutputSchema = z.object({
-    responseText: z.string().describe("The AI counselor's response in the conversation, in Telugu."),
-    audioDataUri: z.string(),
+  responseText: z.string().describe("The AI counselor's response in the conversation, in Telugu."),
+  audioDataUri: z.string(),
 });
 export type LiveCounselingOutput = z.infer<typeof LiveCounselingOutputSchema>;
 
 
 function buildPrompt(input: LiveCounselingInput): string {
-    const historyText = input.conversationHistory.map(msg => `${msg.role === 'ai' ? 'AI Counselor' : 'Sheeter'}: ${msg.content}`).join('\n');
+  const historyText = input.conversationHistory.map(msg => `${msg.role === 'ai' ? 'AI Counselor' : 'Sheeter'}: ${msg.content}`).join('\n');
 
-    return `You are an AI assistant acting as a professional counselor for a police department. You are conducting a live interview with a "rowdy sheeter". Your goal is to examine their current status and behavior by engaging in a conversation. The entire conversation MUST be in Telugu.
+  return `You are an AI assistant acting as a professional counselor for a police department. You are conducting a live interview with a "rowdy sheeter". Your goal is to examine their current status and behavior by engaging in a conversation. The entire conversation MUST be in Telugu.
 
 IMPORTANT: You are a supportive tool and not a replacement for professional medical or legal advice. Your role is to facilitate conversation.
 
@@ -121,51 +121,38 @@ export async function liveCounseling(input: LiveCounselingInput): Promise<LiveCo
   const promptText = buildPrompt(input);
 
   const response = await fetchWithRetry(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    "http://localhost:8000/counsel/text",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-goog-api-key": process.env.GEMINI_API_KEY as string,
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }],
-        generationConfig: {
-          response_mime_type: "application/json",
-        },
-        safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_LOW_AND_ABOVE' },
-        ],
+        message: input.latestSheeterMessage || "[START_SESSION]",
+        history: input.conversationHistory.map((msg: any) => ({
+          role: msg.role === 'ai' ? 'assistant' : 'user',
+          content: msg.content
+        })),
+        sheeter_profile: input.sheeterProfile
       }),
     }
   );
 
   if (!response.ok) {
     const err = await response.text();
-    console.error("Gemini API Error:", err);
-    throw new Error(`Gemini API request failed: ${response.statusText}`);
+    console.error("Local API Error:", err);
+    throw new Error(`Local API request failed: ${response.statusText}`);
   }
 
   const data = await response.json();
-  const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const responseText = data.response_text;
 
-  if (!textOutput) {
-    throw new Error("Empty or invalid response from Gemini API");
+  // The local python model returns response_audio_wav_base64 directly (which is now MP3 from gTTS)
+  const audioDataUri = `data:audio/mp3;base64,${data.response_audio_wav_base64}`;
+
+  if (!responseText) {
+    throw new Error("Empty or invalid response from Local API");
   }
-
-  let responseText: string;
-  try {
-    const jsonOutput = JSON.parse(textOutput);
-    responseText = z.object({ responseText: z.string() }).parse(jsonOutput).responseText;
-  } catch (e) {
-    console.error("Failed to parse Gemini response as JSON:", textOutput);
-    throw new Error("Invalid JSON response from AI.");
-  }
-
-  const { audioDataUri } = await textToSpeech({ text: responseText });
 
   return {
     responseText,

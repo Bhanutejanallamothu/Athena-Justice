@@ -7,7 +7,7 @@
  * - VoiceToVoiceQuestionOutput - The return type for the generateQuestion function.
  */
 
-import {z} from 'zod';
+import { z } from 'zod';
 
 // Helper functions for retry logic
 const MAX_RETRIES = 4;
@@ -23,21 +23,21 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<Respon
 
       if (response.status === 429) {
         let waitTime = Math.pow(2, i) * 500 + Math.random() * 100; // Exponential backoff with jitter
-        
+
         const retryAfterHeader = response.headers.get('Retry-After');
         if (retryAfterHeader) {
-            const retryAfterSeconds = parseInt(retryAfterHeader, 10);
-            if (!isNaN(retryAfterSeconds)) {
-                waitTime = retryAfterSeconds * 1000;
-            }
+          const retryAfterSeconds = parseInt(retryAfterHeader, 10);
+          if (!isNaN(retryAfterSeconds)) {
+            waitTime = retryAfterSeconds * 1000;
+          }
         }
-        
+
         console.warn(`API rate limited. Retrying in ${waitTime.toFixed(0)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`);
         await sleep(waitTime);
         lastError = new Error(`Request failed with status ${response.status}.`);
         continue;
       }
-      
+
       return response;
 
     } catch (error) {
@@ -73,7 +73,7 @@ const VoiceToVoiceQuestionOutputSchema = z.object({
 export type VoiceToVoiceQuestionOutput = z.infer<typeof VoiceToVoiceQuestionOutputSchema>;
 
 function buildPrompt(input: VoiceToVoiceQuestionInput): string {
-    return `You are an AI assistant designed to generate context-appropriate counseling questions based on the rowdy sheeter's profile and previous responses.
+  return `You are an AI assistant designed to generate context-appropriate counseling questions based on the rowdy sheeter's profile and previous responses.
 
 Consider the following information about the rowdy sheeter:
 Profile Details: ${input.profileDetails}
@@ -90,43 +90,36 @@ Your response should be a JSON object with a single key "question" containing th
 }
 
 export async function generateQuestion(input: VoiceToVoiceQuestionInput): Promise<VoiceToVoiceQuestionOutput> {
-    const promptText = buildPrompt(input);
+  const promptText = buildPrompt(input);
 
-    const response = await fetchWithRetry(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-goog-api-key": process.env.GEMINI_API_KEY as string,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: {
-            response_mime_type: "application/json",
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-        const err = await response.text();
-        console.error("Gemini API Error:", err);
-        throw new Error(`Gemini API request failed: ${response.statusText}`);
+  const response = await fetchWithRetry(
+    "http://localhost:8000/counsel/text",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: buildPrompt(input),
+      }),
     }
-    
-    const data = await response.json();
-    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  );
 
-    if (!textOutput) {
-        throw new Error("Empty or invalid response from Gemini API");
-    }
+  if (!response.ok) {
+    const err = await response.text();
+    console.error("Local API Error:", err);
+    throw new Error(`Local API request failed: ${response.statusText}`);
+  }
 
-    try {
-        const jsonOutput = JSON.parse(textOutput);
-        return VoiceToVoiceQuestionOutputSchema.parse(jsonOutput);
-    } catch (e) {
-        console.error("Failed to parse Gemini response as JSON:", textOutput);
-        throw new Error("Invalid JSON response from AI.");
-    }
+  const data = await response.json();
+  const textOutput = data.response_text;
+
+  if (!textOutput) {
+    throw new Error("Empty or invalid response from Local API");
+  }
+
+  // Mocking the required JSON output based on the local model's simple text response
+  return {
+    question: textOutput
+  };
 }
